@@ -1,0 +1,11 @@
+/home/wangfeng/labelmaster/LabelRoboMaster/build/CMakeFiles/big_resources_resource.dir
+/home/wangfeng/labelmaster/LabelRoboMaster/build/CMakeFiles/rcc_object_resource.dir
+/home/wangfeng/labelmaster/LabelRoboMaster/build/CMakeFiles/LabelMaster.dir
+/home/wangfeng/labelmaster/LabelRoboMaster/build/CMakeFiles/edit_cache.dir
+/home/wangfeng/labelmaster/LabelRoboMaster/build/CMakeFiles/rebuild_cache.dir
+/home/wangfeng/labelmaster/LabelRoboMaster/build/CMakeFiles/list_install_components.dir
+/home/wangfeng/labelmaster/LabelRoboMaster/build/CMakeFiles/install.dir
+/home/wangfeng/labelmaster/LabelRoboMaster/build/CMakeFiles/install/local.dir
+/home/wangfeng/labelmaster/LabelRoboMaster/build/CMakeFiles/install/strip.dir
+/home/wangfeng/labelmaster/LabelRoboMaster/build/CMakeFiles/LabelMaster_autogen_timestamp_deps.dir
+/home/wangfeng/labelmaster/LabelRoboMaster/build/CMakeFiles/LabelMaster_autogen.dir

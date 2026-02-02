@@ -64,7 +64,7 @@ MainWindow::MainWindow(QWidget *parent, std::string path, int init_mode) :
         }
         QDir dir(QString::fromStdString(path));
         ui->label->reset();     // 重置绘图控件
-        QStringList image_filter = {"*.jpg", "*.png", "*.jpeg"};    // 支持的图像格式
+        QStringList image_filter = {"*.jpg", "*.png", "*.jpeg", "*.bmp"};    // 支持的图像格式
         ui->fileListWidget->clear();    // 清空文件列表
         int idx = 0;
         // 遍历文件夹下的图片，并添加到文件列表
@@ -90,7 +90,7 @@ MainWindow::~MainWindow() {
 
 void MainWindow::on_openDirectoryPushButton_clicked() {
     ui->label->reset();     // 重置绘图控件
-    QStringList image_filter = {"*.jpg", "*.png", "*.jpeg"};    // 支持的图像格式
+    QStringList image_filter = {"*.jpg", "*.png", "*.jpeg", "*.bmp"};    // 支持的图像格式
     QDir dir;
     dir = QFileDialog::getExistingDirectory(this, "", ui->label->configure.last_open, QFileDialog::ShowDirsOnly);
     ui->fileListWidget->clear();    // 清空文件列表

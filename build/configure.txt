@@ -1,0 +1,7 @@
+CONFIGURE_1.0
+5
+4
+/home/wangfeng/RM2026/amor_data/competation/5-24/3/images_0524_1608
+55
+0
+1
