@@ -4,6 +4,7 @@ cmake-build-*
 
 # vscode
 .vscode
+build/
 
 # MacOS
 .DS_STORE
