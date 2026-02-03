@@ -921,7 +921,7 @@ void DrawOnPic::load_svg()
             standard_tag_render[2].load(QString(":/pic/tags/resource/2.svg"));
             standard_tag_render[3].load(QString(":/pic/tags/resource/3.svg"));
             standard_tag_render[4].load(QString(":/pic/tags/resource/4.svg"));
-            standard_tag_render[5].load(QString(":/pic/tags/resource/5.svg"));
+            standard_tag_render[5].load(QString(":/pic/tags/resource/O.svg"));
             standard_tag_render[6].load(QString(":/pic/tags/resource/O.svg"));
             standard_tag_render[7].load(QString(":/pic/tags/resource/Bs.svg"));
             standard_tag_render[8].load(QString(":/pic/tags/resource/Bb.svg"));
