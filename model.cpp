@@ -111,7 +111,20 @@ SmartModel::SmartModel() {
 bool SmartModel::run(const QString &image_file, QVector<box_t> &boxes) {
     try {
         // 加载图片，并等比例resize为640x640。空余部分用0进行填充。
-        auto img = cv::imread(image_file.toStdString());
+        cv::Mat img;
+
+        if (image_file.toLower().endsWith(".bmp")){
+            img = cv::imread(image_file.toStdString(), cv::IMREAD_GRAYSCALE);
+            if (img.empty()) {
+                qDebug() << "Failed to load BMP image: " << image_file;
+                return false;
+            }
+            cv::cvtColor(img, img, cv::COLOR_BayerBG2BGR);
+
+        } else {
+            img = cv::imread(image_file.toStdString(), cv::IMREAD_COLOR);
+        }
+
         float scale = 640.f / std::max(img.cols, img.rows);
         cv::resize(img, img, {(int) round(img.cols * scale), (int) round(img.rows * scale)});
         cv::Mat input(640, 640, CV_8UC3, 127);

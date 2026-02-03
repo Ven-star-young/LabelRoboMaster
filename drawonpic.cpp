@@ -15,6 +15,26 @@
 #include <opencv2/opencv.hpp>
 #include <stdio.h>
 
+// 在文件顶部,包含头文件后添加辅助函数
+static cv::Mat loadImageWithBayerSupport(const QString &filepath) {
+    cv::Mat img;
+    
+    if (filepath.toLower().endsWith(".bmp")) {
+        // 读取 Bayer 格式 BMP
+        cv::Mat bayer_img = cv::imread(filepath.toStdString(), cv::IMREAD_GRAYSCALE);
+        if (!bayer_img.empty()) {
+            // Bayer 转 RGB (根据实际 Bayer 格式选择: BayerRG, BayerBG, BayerGB, BayerGR)
+            cv::cvtColor(bayer_img, img, cv::COLOR_BayerBG2BGR);
+        }
+    } else {
+        // 其他格式正常读取
+        img = cv::imread(filepath.toStdString());
+    }
+    
+    return img;
+}
+
+
 DrawOnPic::DrawOnPic(QWidget *parent) : QLabel(parent), model() {
     pen_point_focus.setWidth(5);
     pen_point_focus.setColor(Qt::green);
@@ -115,7 +135,7 @@ void DrawOnPic::mousePressEvent(QMouseEvent *event) {
                 break;
             case COVER_MODE:
                 if (!modified_img.rows)
-                    modified_img = cv::imread(current_file.toStdString());
+                    modified_img = loadImageWithBayerSupport(current_file);
                 p = img2label.inverted().map(pos);
                 if (p.x() >= 0 && p.y() >= 0 && p.x() <= img->width() && p.y() <= img->height()) {
                     cv::circle(modified_img, cv::Point2f(p.x(), p.y()), cover_radius, 0, -1);
@@ -774,7 +794,7 @@ void DrawOnPic::stayPositionChanged(bool value) {
 void DrawOnPic::illuminate() {
     if (!image_enhanceV) {
         cv::Mat channel[3];
-        enh_img = modified_img.rows ? modified_img.clone() : cv::imread(current_file.toStdString());
+        enh_img = modified_img.rows ? modified_img.clone() : loadImageWithBayerSupport(current_file);
         if (enh_img.empty()) {
             qDebug() << "Failed to load image: " << current_file;
             return;
@@ -812,7 +832,7 @@ void DrawOnPic::illuminate() {
 void DrawOnPic::histogram_Equalization() {
     if (!image_equalizeHist) {
         cv::Mat channel[4];
-        enh_img = modified_img.rows ? modified_img.clone() : cv::imread(current_file.toStdString());
+        enh_img = modified_img.rows ? modified_img.clone() : loadImageWithBayerSupport(current_file);
         if (enh_img.empty()) {
             qDebug() << "Failed to load image: " << current_file;
             return;
@@ -846,8 +866,7 @@ void DrawOnPic::update_cover(QPointF center) {
     center = img2label.inverted().map(pos);
     if (center.x() > 0 && center.y() > 0 && center.x() < img->width() && center.y() < img->height()) {
         cv::Mat cover_img = (image_enhanceV + image_equalizeHist ? enh_img : (modified_img.rows ? modified_img
-                                                                                                : cv::imread(
-                        current_file.toStdString()))).clone();
+                                                                                                : loadImageWithBayerSupport(current_file))).clone();
         if (!(image_enhanceV + image_equalizeHist))
             cv::cvtColor(cover_img, cover_img, cv::COLOR_RGB2BGR);
         cv::circle(cover_img, cv::Point2f(center.x(), center.y()), cover_radius, 0, -1);
