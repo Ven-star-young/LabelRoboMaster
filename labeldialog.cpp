@@ -5,7 +5,7 @@
 #include <QDebug>
 
 int last_tag_id = 0, last_color_id = 0;
-static const QString Armor_names[] = {"Sentry", "Hero", "Engineer", "3-Infantry", "4-Infantry", "5-Infantry", "Outpost", "Base-small", "Base-big", "3-Balance", "4-Balance", "5-Balance"};
+static const QString Armor_names[] = {"Sentry", "Hero", "Engineer", "3-Infantry", "4-Infantry", "Outpost", "Outpost", "Base-small", "Base-big", "3-Balance", "4-Balance", "5-Balance"};
 static const QString Engineer_names[] = {"R-tag", "Top", "Bottom", "Entrance", "Arrow"};
 static const QString Wind_names[] = {"Dark", "To-hit", "Hit"};
 static const QString Color_names[] = {"Blue", "Red", "Extinguish", "Purple"};
