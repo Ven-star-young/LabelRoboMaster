@@ -936,53 +936,52 @@ void DrawOnPic::roi_Enhance() {
     // 横向（x）：向中心收缩 20%，避开灯条高亮区域
     // 纵向（y）：向外扩展 30%，包含更多上下内容
     const float shrink_ratio_x = 0.2f;
-    const float expand_ratio_y = 0.8f;
+    const float expand_ratio_y = 0.85f;
     std::vector<cv::Point2f> pts;
     for (const auto &pt : pts_raw) {
         pts.push_back(cv::Point2f(
-            center.x + (pt.x - center.x) * (1.0f - shrink_ratio_x),  // 横向收缩
-            center.y + (pt.y - center.y) * (1.0f + expand_ratio_y)   // 纵向扩展
+            center.x + (pt.x - center.x) * (1.0f - shrink_ratio_x),
+            center.y + (pt.y - center.y) * (1.0f + expand_ratio_y)
         ));
     }
     
-    // 计算目标矩形尺寸（根据原始四边形的宽度和高度）
-    float raw_w = cv::norm(pts_raw[0] - pts_raw[3]) + cv::norm(pts_raw[1] - pts_raw[2]);
-    raw_w /= 2.0f;
-    float raw_h = cv::norm(pts_raw[0] - pts_raw[1]) + cv::norm(pts_raw[3] - pts_raw[2]);
-    raw_h /= 2.0f;
+    // 计算包含四边形的 ROI 矩形（bounding box）
+    float min_x = std::min({pts[0].x, pts[1].x, pts[2].x, pts[3].x});
+    float max_x = std::max({pts[0].x, pts[1].x, pts[2].x, pts[3].x});
+    float min_y = std::min({pts[0].y, pts[1].y, pts[2].y, pts[3].y});
+    float max_y = std::max({pts[0].y, pts[1].y, pts[2].y, pts[3].y});
     
-    int dst_w = (int)(raw_w * (1.0f - shrink_ratio_x));  // 横向收缩后的宽度
-    int dst_h = (int)(raw_h * (1.0f + expand_ratio_y));  // 纵向扩展后的高度
+    // 边界检查
+    min_x = std::max(0.0f, min_x);
+    min_y = std::max(0.0f, min_y);
+    max_x = std::min((float)work_img.cols - 1, max_x);
+    max_y = std::min((float)work_img.rows - 1, max_y);
     
-    if (dst_w < 10 || dst_h < 10) {
+    int roi_x = (int)min_x;
+    int roi_y = (int)min_y;
+    int roi_w = (int)(max_x - min_x) + 1;
+    int roi_h = (int)(max_y - min_y) + 1;
+    
+    if (roi_w < 10 || roi_h < 10) {
         qDebug() << "ROI size too small";
         return;
     }
     
-    // 定义目标矩形（正视图）：左上、左下、右下、右上
-    std::vector<cv::Point2f> dst_pts = {
-        cv::Point2f(0, 0),
-        cv::Point2f(0, (float)dst_h - 1),
-        cv::Point2f((float)dst_w - 1, (float)dst_h - 1),
-        cv::Point2f((float)dst_w - 1, 0)
-    };
+    // 提取 ROI 区域
+    cv::Rect roi_rect(roi_x, roi_y, roi_w, roi_h);
+    cv::Mat roi = work_img(roi_rect).clone();
     
-    // 计算透视变换矩阵（将倾斜四边形拉正为矩形）
-    cv::Mat persp_matrix = cv::getPerspectiveTransform(pts, dst_pts);
-    if (persp_matrix.empty()) {
-        qDebug() << "Perspective transform failed: invalid source points";
-        return;
+    // 创建精确的四边形掩码（在 ROI 坐标系中）
+    cv::Mat roi_mask = cv::Mat::zeros(roi_h, roi_w, CV_8UC1);
+    std::vector<cv::Point> roi_pts;
+    for (const auto &pt : pts) {
+        roi_pts.push_back(cv::Point((int)(pt.x - roi_x), (int)(pt.y - roi_y)));
     }
-    cv::Mat roi_warped;
-    cv::warpPerspective(work_img, roi_warped, persp_matrix, cv::Size(dst_w, dst_h));
-    if (roi_warped.empty()) {
-        qDebug() << "Warp perspective failed";
-        return;
-    }
+    cv::fillPoly(roi_mask, std::vector<std::vector<cv::Point>>{roi_pts}, cv::Scalar(255));
     
-    // 对拉正后的 ROI 进行增强
+    // 对 ROI 进行增强
     cv::Mat roi_lab;
-    cv::cvtColor(roi_warped, roi_lab, cv::COLOR_RGB2Lab);
+    cv::cvtColor(roi, roi_lab, cv::COLOR_RGB2Lab);
     
     std::vector<cv::Mat> lab_channels;
     cv::split(roi_lab, lab_channels);
@@ -1014,42 +1013,24 @@ void DrawOnPic::roi_Enhance() {
     cv::medianBlur(roi_binary, roi_binary, 3);
     
     // 将二值图转回 3 通道
-    cv::Mat roi_mask;
-    cv::cvtColor(roi_binary, roi_mask, cv::COLOR_GRAY2RGB);
+    cv::Mat roi_mask_color;
+    cv::cvtColor(roi_binary, roi_mask_color, cv::COLOR_GRAY2RGB);
     
     // 混合增强后的图像
     cv::Mat roi_blended;
-    cv::addWeighted(roi_enhanced, 0.6, roi_mask, 0.4, 0, roi_blended);
+    cv::addWeighted(roi_enhanced, 0.6, roi_mask_color, 0.4, 0, roi_blended);
     
     // 最终平滑：双边滤波保持边缘同时平滑（src和dst不能相同）
     cv::Mat roi_smoothed;
     cv::bilateralFilter(roi_blended, roi_smoothed, 5, 50, 50);
-    roi_blended = roi_smoothed;
     
-    // 计算逆透视变换矩阵，将增强后的图像贴回原图
-    cv::Mat inv_persp_matrix = cv::getPerspectiveTransform(dst_pts, pts);
-    if (inv_persp_matrix.empty()) {
-        qDebug() << "Inverse perspective transform failed";
-        return;
-    }
-    cv::Mat roi_restored;
-    cv::warpPerspective(roi_blended, roi_restored, inv_persp_matrix, work_img.size());
-    if (roi_restored.empty()) {
-        qDebug() << "Inverse warp perspective failed";
-        return;
-    }
+    // 应用四边形掩码：只保留四边形内部
+    cv::Mat roi_final;
+    roi_smoothed.copyTo(roi_final, roi_mask);
     
-    // 创建掩码：确定原图中四边形区域
-    cv::Mat mask = cv::Mat::zeros(work_img.size(), CV_8UC1);
-    std::vector<cv::Point> poly_pts;
-    for (const auto &pt : pts) {
-        poly_pts.push_back(cv::Point((int)pt.x, (int)pt.y));
-    }
-    cv::fillPoly(mask, std::vector<std::vector<cv::Point>>{poly_pts}, cv::Scalar(255));
-    
-    // 将增强后的区域贴回原图
+    // 将增强后的 ROI 贴回原图
     cv::Mat result = work_img.clone();
-    roi_restored.copyTo(result, mask);
+    roi_final.copyTo(result(roi_rect), roi_mask);
     
     // 保存到 enh_img 并更新显示
     enh_img = result.clone();
@@ -1068,7 +1049,6 @@ void DrawOnPic::roi_Enhance() {
     update();
     qDebug("ROI enhancement applied to box %d", focus_box_index);
 }
-
 void DrawOnPic::cover_brush() {
     if (mode == NORMAL_MODE) {
         mode = COVER_MODE;
