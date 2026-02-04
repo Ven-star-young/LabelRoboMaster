@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>设置</string>
+   <string>Settings</string>
   </property>
   <widget class="QLabel" name="Label1">
    <property name="geometry">
@@ -28,7 +28,7 @@
     </font>
    </property>
    <property name="text">
-    <string>点吸附距离：</string>
+    <string>point吸附distance：</string>
    </property>
   </widget>
   <widget class="QSlider" name="PDSlider">
@@ -65,7 +65,7 @@
     </font>
    </property>
    <property name="text">
-    <string>高亮倍数：</string>
+    <string>highlight倍数：</string>
    </property>
   </widget>
   <widget class="QSlider" name="VRSlider">
@@ -102,7 +102,7 @@
     </font>
    </property>
    <property name="text">
-    <string>取消</string>
+    <string>cancel</string>
    </property>
   </widget>
   <widget class="QPushButton" name="OKPushButton">
@@ -120,7 +120,7 @@
     </font>
    </property>
    <property name="text">
-    <string>确定</string>
+    <string>ensure</string>
    </property>
   </widget>
   <widget class="QLabel" name="pointDistanceLabel">

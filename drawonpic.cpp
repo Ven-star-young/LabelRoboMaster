@@ -937,7 +937,7 @@ void DrawOnPic::roi_Enhance() {
     // 纵向：平行于 01/23（垂直方向，上下延伸）
     // 横向：垂直于 01/23（水平方向，左右收缩）
     const float shrink_ratio_trans = 0.2f;  // 横向（垂直于边）收缩
-    const float expand_ratio_long = 1.0f;   // 纵向（平行于边）扩展
+    const float expand_ratio_long = 1.5f;   // 纵向（平行于边）扩展
     
     // 计算纵向方向（01 线的方向：从 0 到 1）
     cv::Point2f vec_long = pts_raw[1] - pts_raw[0];  // 01 向量（左边，从上到下）

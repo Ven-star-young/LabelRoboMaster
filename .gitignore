@@ -5,6 +5,7 @@ cmake-build-*
 # vscode
 .vscode
 build/
+dataset/
 
 # MacOS
 .DS_STORE

@@ -1,0 +1,43 @@
+# ============================================
+# Python 依赖 requirements
+# 安装命令: pip install -r requirements.txt
+# ============================================
+
+# OpenCV - 计算机视觉库
+opencv-python>=4.5.0
+
+# NumPy - 数值计算
+numpy>=1.21.0
+
+# tqdm - 进度条显示
+tqdm>=4.62.0
+
+# Matplotlib - 绘图库
+matplotlib>=3.5.0
+
+# ONNX Runtime - 模型推理引擎
+onnxruntime>=1.12.0
+
+# ============================================
+# 可选依赖 (根据需求取消注释)
+# ============================================
+
+# OpenCV 完整版 (包含 contrib 模块)
+# opencv-contrib-python>=4.5.0
+
+# ONNX Runtime GPU 版 (如需 CUDA 加速)
+# onnxruntime-gpu>=1.12.0
+
+# Pillow - 图像处理
+# Pillow>=9.0.0
+
+# PyYAML - YAML 配置文件解析
+# PyYAML>=6.0
+
+# ============================================
+# 开发依赖 (开发调试时使用)
+# ============================================
+
+# pytest>=7.0.0
+# black>=22.0.0
+# flake8>=5.0.0
