@@ -18,7 +18,6 @@ git clone https://github.com/Ven-star-young/LabelRoboMaster.git
 conda create -n label_master python=3.12
 conda activate label_master
 pip install -r requirements.txt
-# 然后调整src/label_generator中的输出的路径详细说明见底下部分
 ```
 
 - 安装LabelMaster依赖
@@ -46,7 +45,6 @@ make
 ```
 
 ## 创建预标注数据集
-
 
 ### 使用说明
 
