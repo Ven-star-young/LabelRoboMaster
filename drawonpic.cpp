@@ -936,7 +936,7 @@ void DrawOnPic::roi_Enhance() {
     // 横向（x）：向中心收缩 20%，避开灯条高亮区域
     // 纵向（y）：向外扩展 30%，包含更多上下内容
     const float shrink_ratio_x = 0.2f;
-    const float expand_ratio_y = 0.3f;
+    const float expand_ratio_y = 0.8f;
     std::vector<cv::Point2f> pts;
     for (const auto &pt : pts_raw) {
         pts.push_back(cv::Point2f(
@@ -969,8 +969,16 @@ void DrawOnPic::roi_Enhance() {
     
     // 计算透视变换矩阵（将倾斜四边形拉正为矩形）
     cv::Mat persp_matrix = cv::getPerspectiveTransform(pts, dst_pts);
+    if (persp_matrix.empty()) {
+        qDebug() << "Perspective transform failed: invalid source points";
+        return;
+    }
     cv::Mat roi_warped;
     cv::warpPerspective(work_img, roi_warped, persp_matrix, cv::Size(dst_w, dst_h));
+    if (roi_warped.empty()) {
+        qDebug() << "Warp perspective failed";
+        return;
+    }
     
     // 对拉正后的 ROI 进行增强
     cv::Mat roi_lab;
@@ -1013,13 +1021,23 @@ void DrawOnPic::roi_Enhance() {
     cv::Mat roi_blended;
     cv::addWeighted(roi_enhanced, 0.6, roi_mask, 0.4, 0, roi_blended);
     
-    // 最终平滑：双边滤波保持边缘同时平滑
-    cv::bilateralFilter(roi_blended, roi_blended, 5, 50, 50);
+    // 最终平滑：双边滤波保持边缘同时平滑（src和dst不能相同）
+    cv::Mat roi_smoothed;
+    cv::bilateralFilter(roi_blended, roi_smoothed, 5, 50, 50);
+    roi_blended = roi_smoothed;
     
     // 计算逆透视变换矩阵，将增强后的图像贴回原图
     cv::Mat inv_persp_matrix = cv::getPerspectiveTransform(dst_pts, pts);
+    if (inv_persp_matrix.empty()) {
+        qDebug() << "Inverse perspective transform failed";
+        return;
+    }
     cv::Mat roi_restored;
     cv::warpPerspective(roi_blended, roi_restored, inv_persp_matrix, work_img.size());
+    if (roi_restored.empty()) {
+        qDebug() << "Inverse warp perspective failed";
+        return;
+    }
     
     // 创建掩码：确定原图中四边形区域
     cv::Mat mask = cv::Mat::zeros(work_img.size(), CV_8UC1);
