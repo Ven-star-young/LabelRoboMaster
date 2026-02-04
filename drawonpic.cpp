@@ -893,6 +893,11 @@ void DrawOnPic::roi_Enhance() {
         return;
     }
     
+    if (current_file.isEmpty()) {
+        qDebug() << "No image loaded";
+        return;
+    }
+    
     // 获取当前图像（优先使用 modified_img）
     cv::Mat base_img = modified_img.rows ? modified_img.clone() : loadImageWithBayerSupport(current_file);
     if (base_img.empty()) {
@@ -913,8 +918,8 @@ void DrawOnPic::roi_Enhance() {
     std::vector<cv::Point2f> pts_raw;
     for (int i = 0; i < 4; ++i) {
         pts_raw.push_back(cv::Point2f(
-            box.pts[i].x() * img->width(),
-            box.pts[i].y() * img->height()
+            box.pts[i].x() * work_img.cols,
+            box.pts[i].y() * work_img.rows
         ));
     }
     
@@ -1030,8 +1035,13 @@ void DrawOnPic::roi_Enhance() {
     
     // 保存到 enh_img 并更新显示
     enh_img = result.clone();
-    img->operator=(QImage((const unsigned char *) enh_img.data, enh_img.cols, enh_img.rows, 
-                          enh_img.step, QImage::Format_RGB888));
+    
+    // 确保 img 不为 null
+    if (img == nullptr) {
+        img = new QImage();
+    }
+    *img = QImage((const unsigned char *) enh_img.data, enh_img.cols, enh_img.rows, 
+                  enh_img.step, QImage::Format_RGB888);
     
     roi_enhance = true;
     image_enhanceV = false;
