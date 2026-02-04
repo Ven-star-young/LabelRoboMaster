@@ -927,11 +927,11 @@ void DrawOnPic::roi_Enhance() {
     center.x /= 4.0f;
     center.y /= 4.0f;
     
-    // 分别处理横向和纵向
+    // 分别处理横向和纵向（针对倾斜四边形，沿点到中心方向缩放）
     // 横向（x）：向中心收缩 20%，避开灯条高亮区域
-    // 纵向（y）：向外扩展 15%，包含更多上下内容
+    // 纵向（y）：向外扩展 30%，包含更多上下内容
     const float shrink_ratio_x = 0.2f;
-    const float expand_ratio_y = 0.7f;
+    const float expand_ratio_y = 0.3f;
     std::vector<cv::Point2f> pts;
     for (const auto &pt : pts_raw) {
         pts.push_back(cv::Point2f(
@@ -940,44 +940,36 @@ void DrawOnPic::roi_Enhance() {
         ));
     }
     
-    // 计算 ROI 的 bounding box
-    float min_x = std::min({pts[0].x, pts[1].x, pts[2].x, pts[3].x});
-    float max_x = std::max({pts[0].x, pts[1].x, pts[2].x, pts[3].x});
-    float min_y = std::min({pts[0].y, pts[1].y, pts[2].y, pts[3].y});
-    float max_y = std::max({pts[0].y, pts[1].y, pts[2].y, pts[3].y});
+    // 计算目标矩形尺寸（根据原始四边形的宽度和高度）
+    float raw_w = cv::norm(pts_raw[0] - pts_raw[3]) + cv::norm(pts_raw[1] - pts_raw[2]);
+    raw_w /= 2.0f;
+    float raw_h = cv::norm(pts_raw[0] - pts_raw[1]) + cv::norm(pts_raw[3] - pts_raw[2]);
+    raw_h /= 2.0f;
     
-    // 边界检查
-    min_x = std::max(0.0f, min_x);
-    min_y = std::max(0.0f, min_y);
-    max_x = std::min((float)img->width() - 1, max_x);
-    max_y = std::min((float)img->height() - 1, max_y);
+    int dst_w = (int)(raw_w * (1.0f - shrink_ratio_x));  // 横向收缩后的宽度
+    int dst_h = (int)(raw_h * (1.0f + expand_ratio_y));  // 纵向扩展后的高度
     
-    int roi_x = (int)min_x;
-    int roi_y = (int)min_y;
-    int roi_w = (int)(max_x - min_x) + 1;
-    int roi_h = (int)(max_y - min_y) + 1;
-    
-    if (roi_w <= 0 || roi_h <= 0) {
-        qDebug() << "Invalid ROI size";
+    if (dst_w < 10 || dst_h < 10) {
+        qDebug() << "ROI size too small";
         return;
     }
     
-    // 提取 ROI
-    cv::Rect roi_rect(roi_x, roi_y, roi_w, roi_h);
-    cv::Mat roi = work_img(roi_rect);
+    // 定义目标矩形（正视图）：左上、左下、右下、右上
+    std::vector<cv::Point2f> dst_pts = {
+        cv::Point2f(0, 0),
+        cv::Point2f(0, (float)dst_h - 1),
+        cv::Point2f((float)dst_w - 1, (float)dst_h - 1),
+        cv::Point2f((float)dst_w - 1, 0)
+    };
     
-    // 创建掩码：四边形区域内为 255，外部为 0
-    cv::Mat mask = cv::Mat::zeros(roi_h, roi_w, CV_8UC1);
-    std::vector<cv::Point> roi_pts;
-    for (const auto &pt : pts) {
-        roi_pts.push_back(cv::Point((int)(pt.x - roi_x), (int)(pt.y - roi_y)));
-    }
-    cv::fillPoly(mask, std::vector<std::vector<cv::Point>>{roi_pts}, cv::Scalar(255));
+    // 计算透视变换矩阵（将倾斜四边形拉正为矩形）
+    cv::Mat persp_matrix = cv::getPerspectiveTransform(pts, dst_pts);
+    cv::Mat roi_warped;
+    cv::warpPerspective(work_img, roi_warped, persp_matrix, cv::Size(dst_w, dst_h));
     
-    // 对 ROI 进行增强：CLAHE (对比度受限的自适应直方图均衡化)
-    // 适合黑底白线的图像增强
-    cv::Mat roi_lab, roi_enhanced;
-    cv::cvtColor(roi, roi_lab, cv::COLOR_RGB2Lab);
+    // 对拉正后的 ROI 进行增强
+    cv::Mat roi_lab;
+    cv::cvtColor(roi_warped, roi_lab, cv::COLOR_RGB2Lab);
     
     std::vector<cv::Mat> lab_channels;
     cv::split(roi_lab, lab_channels);
@@ -987,9 +979,13 @@ void DrawOnPic::roi_Enhance() {
     cv::Mat l_enhanced;
     clahe->apply(lab_channels[0], l_enhanced);
     
+    // 平滑处理：高斯模糊去除颗粒感
+    cv::GaussianBlur(l_enhanced, l_enhanced, cv::Size(3, 3), 0.5);
+    
     // 合并通道
     lab_channels[0] = l_enhanced;
     cv::merge(lab_channels, roi_lab);
+    cv::Mat roi_enhanced;
     cv::cvtColor(roi_lab, roi_enhanced, cv::COLOR_Lab2RGB);
     
     // 额外增强：对比度拉伸（让白色线条更明显）
@@ -1001,28 +997,36 @@ void DrawOnPic::roi_Enhance() {
                           cv::ADAPTIVE_THRESH_GAUSSIAN_C, 
                           cv::THRESH_BINARY, 11, 2);
     
+    // 平滑二值图像，去除噪点
+    cv::medianBlur(roi_binary, roi_binary, 3);
+    
     // 将二值图转回 3 通道
     cv::Mat roi_mask;
     cv::cvtColor(roi_binary, roi_mask, cv::COLOR_GRAY2RGB);
     
-    // 混合增强后的图像：增强版与原图按一定比例混合
+    // 混合增强后的图像
     cv::Mat roi_blended;
-    cv::addWeighted(roi_enhanced, 0.7, roi_mask, 0.3, 0, roi_blended);
+    cv::addWeighted(roi_enhanced, 0.6, roi_mask, 0.4, 0, roi_blended);
     
-    // 应用掩码：只保留四边形内部
-    cv::Mat roi_final;
-    roi_blended.copyTo(roi_final, mask);
+    // 最终平滑：双边滤波保持边缘同时平滑
+    cv::bilateralFilter(roi_blended, roi_blended, 5, 50, 50);
     
-    // 将增强后的 ROI 贴回原图（保持外部不变）
-    cv::Mat result = work_img.clone();
-    // 先将原图 ROI 区域复制过去，再用掩码覆盖增强区域
-    for (int y = 0; y < roi_h; ++y) {
-        for (int x = 0; x < roi_w; ++x) {
-            if (mask.at<uchar>(y, x) > 0) {
-                result.at<cv::Vec3b>(roi_y + y, roi_x + x) = roi_final.at<cv::Vec3b>(y, x);
-            }
-        }
+    // 计算逆透视变换矩阵，将增强后的图像贴回原图
+    cv::Mat inv_persp_matrix = cv::getPerspectiveTransform(dst_pts, pts);
+    cv::Mat roi_restored;
+    cv::warpPerspective(roi_blended, roi_restored, inv_persp_matrix, work_img.size());
+    
+    // 创建掩码：确定原图中四边形区域
+    cv::Mat mask = cv::Mat::zeros(work_img.size(), CV_8UC1);
+    std::vector<cv::Point> poly_pts;
+    for (const auto &pt : pts) {
+        poly_pts.push_back(cv::Point((int)pt.x, (int)pt.y));
     }
+    cv::fillPoly(mask, std::vector<std::vector<cv::Point>>{poly_pts}, cv::Scalar(255));
+    
+    // 将增强后的区域贴回原图
+    cv::Mat result = work_img.clone();
+    roi_restored.copyTo(result, mask);
     
     // 保存到 enh_img 并更新显示
     enh_img = result.clone();
