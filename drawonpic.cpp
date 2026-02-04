@@ -932,16 +932,42 @@ void DrawOnPic::roi_Enhance() {
     center.x /= 4.0f;
     center.y /= 4.0f;
     
-    // 分别处理横向和纵向（针对倾斜四边形，沿点到中心方向缩放）
-    // 横向（x）：向中心收缩 20%，避开灯条高亮区域
-    // 纵向（y）：向外扩展 30%，包含更多上下内容
-    const float shrink_ratio_x = 0.2f;
-    const float expand_ratio_y = 0.85f;
+    // 分别处理横向和纵向（沿装甲板自然方向）
+    // 0-1 是左边，2-3 是右边，01 与 23 平行
+    // 纵向：平行于 01/23（垂直方向，上下延伸）
+    // 横向：垂直于 01/23（水平方向，左右收缩）
+    const float shrink_ratio_trans = 0.2f;  // 横向（垂直于边）收缩
+    const float expand_ratio_long = 1.0f;   // 纵向（平行于边）扩展
+    
+    // 计算纵向方向（01 线的方向：从 0 到 1）
+    cv::Point2f vec_long = pts_raw[1] - pts_raw[0];  // 01 向量（左边，从上到下）
+    float len_long = std::sqrt(vec_long.x * vec_long.x + vec_long.y * vec_long.y);
+    cv::Point2f dir_long(0, 1);  // 默认垂直方向
+    if (len_long > 0) {
+        dir_long = cv::Point2f(vec_long.x / len_long, vec_long.y / len_long);
+    }
+    
+    // 横向方向（垂直于纵向，从左向右）
+    // 顺时针旋转90度：(-y, x)
+    cv::Point2f dir_trans(-dir_long.y, dir_long.x);
+    
+    // 对每个点进行变换
     std::vector<cv::Point2f> pts;
-    for (const auto &pt : pts_raw) {
+    for (int i = 0; i < 4; ++i) {
+        cv::Point2f offset = pts_raw[i] - center;
+        
+        // 分解为纵向和横向分量（点积）
+        float proj_long = offset.x * dir_long.x + offset.y * dir_long.y;    // 纵向投影
+        float proj_trans = offset.x * dir_trans.x + offset.y * dir_trans.y;  // 横向投影
+        
+        // 应用缩放：纵向扩展，横向收缩
+        proj_long *= (1.0f + expand_ratio_long);
+        proj_trans *= (1.0f - shrink_ratio_trans);
+        
+        // 重新组合：中心 + 纵向分量 + 横向分量
         pts.push_back(cv::Point2f(
-            center.x + (pt.x - center.x) * (1.0f - shrink_ratio_x),
-            center.y + (pt.y - center.y) * (1.0f + expand_ratio_y)
+            center.x + proj_long * dir_long.x + proj_trans * dir_trans.x,
+            center.y + proj_long * dir_long.y + proj_trans * dir_trans.y
         ));
     }
     
