@@ -37,6 +37,7 @@ public:
     cv::Mat modified_img = NULL_IMG, enh_img = NULL_IMG;
     bool image_equalizeHist = false;
     bool image_enhanceV = false;
+    bool roi_enhance = false;
     bool del_file = false;
     LabelMode label_mode = Armor;
     Configure configure;
@@ -81,6 +82,8 @@ public slots:
     void illuminate();
 
     void histogram_Equalization();
+
+    void roi_Enhance();
 
     void cover_brush();
 

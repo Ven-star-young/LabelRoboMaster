@@ -471,6 +471,12 @@ void DrawOnPic::keyPressEvent(QKeyEvent *event) {
             break;
 #pragma endregion
 
+#pragma region ROI增强
+        case Qt::Key_Y: // ROI区域增强
+            roi_Enhance();
+            break;
+#pragma endregion
+
 #pragma region 涂黑
 //        case Qt::Key_5:
 //            cover_brush();
@@ -606,6 +612,7 @@ void DrawOnPic::loadImage() {
     img->load(current_file);
     image_equalizeHist = false;
     image_enhanceV = false;
+    roi_enhance = false;
     double ratio = std::min((double) QLabel::geometry().width() / img->width(),
                             (double) QLabel::geometry().height() / img->height());
 
@@ -816,6 +823,7 @@ void DrawOnPic::illuminate() {
                               QImage::Format_RGB888));
         image_enhanceV = true;
         image_equalizeHist = false;
+        roi_enhance = false;
     } else {
         image_enhanceV = false;
         if (modified_img.rows) {
@@ -848,6 +856,7 @@ void DrawOnPic::histogram_Equalization() {
                               enh_img.step, QImage::Format_RGB888));
         image_enhanceV = false;
         image_equalizeHist = true;
+        roi_enhance = false;
     } else {
         image_equalizeHist = false;
         if (modified_img.rows) {
@@ -877,6 +886,157 @@ void DrawOnPic::update_cover(QPointF center) {
     update();
 }
 
+void DrawOnPic::roi_Enhance() {
+    // 对选中目标的 ROI 区域进行图像增强
+    if (focus_box_index < 0 || focus_box_index >= current_label.size()) {
+        qDebug() << "No box selected for ROI enhancement";
+        return;
+    }
+    
+    // 获取当前图像（优先使用 modified_img）
+    cv::Mat base_img = modified_img.rows ? modified_img.clone() : loadImageWithBayerSupport(current_file);
+    if (base_img.empty()) {
+        qDebug() << "Failed to load image for ROI enhancement";
+        return;
+    }
+    
+    // 转换为 RGB 格式以便处理
+    cv::Mat work_img;
+    if (base_img.channels() == 3) {
+        cv::cvtColor(base_img, work_img, cv::COLOR_BGR2RGB);
+    } else {
+        work_img = base_img.clone();
+    }
+    
+    // 获取选中目标的四个关键点（归一化坐标转像素坐标）
+    const box_t &box = current_label[focus_box_index];
+    std::vector<cv::Point2f> pts_raw;
+    for (int i = 0; i < 4; ++i) {
+        pts_raw.push_back(cv::Point2f(
+            box.pts[i].x() * img->width(),
+            box.pts[i].y() * img->height()
+        ));
+    }
+    
+    // 计算四边形中心点
+    cv::Point2f center(0, 0);
+    for (const auto &pt : pts_raw) {
+        center.x += pt.x;
+        center.y += pt.y;
+    }
+    center.x /= 4.0f;
+    center.y /= 4.0f;
+    
+    // 分别处理横向和纵向
+    // 横向（x）：向中心收缩 20%，避开灯条高亮区域
+    // 纵向（y）：向外扩展 15%，包含更多上下内容
+    const float shrink_ratio_x = 0.2f;
+    const float expand_ratio_y = 0.7f;
+    std::vector<cv::Point2f> pts;
+    for (const auto &pt : pts_raw) {
+        pts.push_back(cv::Point2f(
+            center.x + (pt.x - center.x) * (1.0f - shrink_ratio_x),  // 横向收缩
+            center.y + (pt.y - center.y) * (1.0f + expand_ratio_y)   // 纵向扩展
+        ));
+    }
+    
+    // 计算 ROI 的 bounding box
+    float min_x = std::min({pts[0].x, pts[1].x, pts[2].x, pts[3].x});
+    float max_x = std::max({pts[0].x, pts[1].x, pts[2].x, pts[3].x});
+    float min_y = std::min({pts[0].y, pts[1].y, pts[2].y, pts[3].y});
+    float max_y = std::max({pts[0].y, pts[1].y, pts[2].y, pts[3].y});
+    
+    // 边界检查
+    min_x = std::max(0.0f, min_x);
+    min_y = std::max(0.0f, min_y);
+    max_x = std::min((float)img->width() - 1, max_x);
+    max_y = std::min((float)img->height() - 1, max_y);
+    
+    int roi_x = (int)min_x;
+    int roi_y = (int)min_y;
+    int roi_w = (int)(max_x - min_x) + 1;
+    int roi_h = (int)(max_y - min_y) + 1;
+    
+    if (roi_w <= 0 || roi_h <= 0) {
+        qDebug() << "Invalid ROI size";
+        return;
+    }
+    
+    // 提取 ROI
+    cv::Rect roi_rect(roi_x, roi_y, roi_w, roi_h);
+    cv::Mat roi = work_img(roi_rect);
+    
+    // 创建掩码：四边形区域内为 255，外部为 0
+    cv::Mat mask = cv::Mat::zeros(roi_h, roi_w, CV_8UC1);
+    std::vector<cv::Point> roi_pts;
+    for (const auto &pt : pts) {
+        roi_pts.push_back(cv::Point((int)(pt.x - roi_x), (int)(pt.y - roi_y)));
+    }
+    cv::fillPoly(mask, std::vector<std::vector<cv::Point>>{roi_pts}, cv::Scalar(255));
+    
+    // 对 ROI 进行增强：CLAHE (对比度受限的自适应直方图均衡化)
+    // 适合黑底白线的图像增强
+    cv::Mat roi_lab, roi_enhanced;
+    cv::cvtColor(roi, roi_lab, cv::COLOR_RGB2Lab);
+    
+    std::vector<cv::Mat> lab_channels;
+    cv::split(roi_lab, lab_channels);
+    
+    // 对 L 通道应用 CLAHE
+    cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(2.0, cv::Size(8, 8));
+    cv::Mat l_enhanced;
+    clahe->apply(lab_channels[0], l_enhanced);
+    
+    // 合并通道
+    lab_channels[0] = l_enhanced;
+    cv::merge(lab_channels, roi_lab);
+    cv::cvtColor(roi_lab, roi_enhanced, cv::COLOR_Lab2RGB);
+    
+    // 额外增强：对比度拉伸（让白色线条更明显）
+    cv::Mat roi_gray, roi_binary;
+    cv::cvtColor(roi_enhanced, roi_gray, cv::COLOR_RGB2GRAY);
+    
+    // 自适应阈值处理，增强白色线条
+    cv::adaptiveThreshold(roi_gray, roi_binary, 255, 
+                          cv::ADAPTIVE_THRESH_GAUSSIAN_C, 
+                          cv::THRESH_BINARY, 11, 2);
+    
+    // 将二值图转回 3 通道
+    cv::Mat roi_mask;
+    cv::cvtColor(roi_binary, roi_mask, cv::COLOR_GRAY2RGB);
+    
+    // 混合增强后的图像：增强版与原图按一定比例混合
+    cv::Mat roi_blended;
+    cv::addWeighted(roi_enhanced, 0.7, roi_mask, 0.3, 0, roi_blended);
+    
+    // 应用掩码：只保留四边形内部
+    cv::Mat roi_final;
+    roi_blended.copyTo(roi_final, mask);
+    
+    // 将增强后的 ROI 贴回原图（保持外部不变）
+    cv::Mat result = work_img.clone();
+    // 先将原图 ROI 区域复制过去，再用掩码覆盖增强区域
+    for (int y = 0; y < roi_h; ++y) {
+        for (int x = 0; x < roi_w; ++x) {
+            if (mask.at<uchar>(y, x) > 0) {
+                result.at<cv::Vec3b>(roi_y + y, roi_x + x) = roi_final.at<cv::Vec3b>(y, x);
+            }
+        }
+    }
+    
+    // 保存到 enh_img 并更新显示
+    enh_img = result.clone();
+    img->operator=(QImage((const unsigned char *) enh_img.data, enh_img.cols, enh_img.rows, 
+                          enh_img.step, QImage::Format_RGB888));
+    
+    roi_enhance = true;
+    image_enhanceV = false;
+    image_equalizeHist = false;
+    
+    update();
+    qDebug("ROI enhancement applied to box %d", focus_box_index);
+}
+
 void DrawOnPic::cover_brush() {
     if (mode == NORMAL_MODE) {
         mode = COVER_MODE;
@@ -897,6 +1057,9 @@ void DrawOnPic::cover_brush() {
         } else if (image_equalizeHist) {
             image_equalizeHist = false;
             histogram_Equalization();
+        } else if (roi_enhance) {
+            roi_enhance = false;
+            img->load(current_file);
         }
         update();
     }
