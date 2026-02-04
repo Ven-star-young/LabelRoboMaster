@@ -1,6 +1,6 @@
 # RoboWalker 装甲板标注工具
 
-> 本工具在(https://github.com/MonthMoonBird/LabelRoboMaster)的基础上进行了修改和优化，以适应战队的需求。原始的说明文档见[这里](./README_original.md)。
+> 本工具在[LabelRoboMaster](https://github.com/MonthMoonBird/LabelRoboMaster) 的基础上进行了修改和优化，以适应战队的需求。原始的说明文档见[这里](./README_original.md)。
 
 ## 快速开始
 操作系统wsl2+ubuntu22.04
