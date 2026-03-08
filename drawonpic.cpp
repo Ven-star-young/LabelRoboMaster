@@ -1132,13 +1132,13 @@ void DrawOnPic::load_svg()
             big_pts.clear();
             big_pts.append({1.57,145.49});
             big_pts.append({1.57,331.575});
-            big_pts.append({854.885,145.49});
             big_pts.append({854.885,331.575});
+            big_pts.append({854.885,145.49});
             small_pts.clear();
             small_pts.append({1.915, 137.655});
             small_pts.append({1.915, 323.775});
-            small_pts.append({496.185, 137.655});
             small_pts.append({496.185, 323.775});
+            small_pts.append({496.185, 137.655});
             big_svg_ploygen.clear();
             big_svg_ploygen.append({0., 0.});
             big_svg_ploygen.append({0., 469.874});
